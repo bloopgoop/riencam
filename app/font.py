@@ -1,0 +1,63 @@
+FONT = {
+    "A": [
+        "  ##  ",
+        " #  # ",
+        "#    #",
+        "######",
+        "#    #",
+        "#    #",
+        "#    #",
+        "      ",
+    ],
+    "E": [
+        "######",
+        "#     ",
+        "##### ",
+        "#     ",
+        "#     ",
+        "######",
+        "      ",
+        "      ",
+    ],
+    "R": [
+        "##### ",
+        "#    #",
+        "##### ",
+        "#  #  ",
+        "#   # ",
+        "#    #",
+        "      ",
+        "      ",
+    ],
+    "D": [
+        "##### ",
+        "#    #",
+        "#    #",
+        "#    #",
+        "#    #",
+        "##### ",
+        "      ",
+        "      ",
+    ],
+    "Y": [
+        "#    #",
+        " #  # ",
+        "  ##  ",
+        "  ##  ",
+        "  ##  ",
+        "  ##  ",
+        "      ",
+        "      ",
+    ],
+    " ": ["      "] * 8,
+}
+
+def draw_text(fb, x, y, text, color):
+    from framebuffer import rgb565
+    for char in text:
+        glyph = FONT.get(char.upper(), FONT[" "])
+        for row, line in enumerate(glyph):
+            for col, c in enumerate(line):
+                if c == "#":
+                    fb.draw_rect(x + col, y + row, 1, 1, color)
+        x += 8
