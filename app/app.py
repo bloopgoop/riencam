@@ -20,8 +20,15 @@ import threading
 
 event_queue = Queue()
 
+SHUTTER_GPIO = 16
 
 def shutter_thread(queue):
+    # accept events from shutter
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(
+        SHUTTER_GPIO, GPIO.IN, pull_up_down=GPIO.PUD_UP  # idle HIGH, pressed LOW
+    )
+
     last_state = GPIO.input(SHUTTER_GPIO)
 
     while True:
@@ -36,9 +43,6 @@ def shutter_thread(queue):
 
 def on_touch(event):
     event_queue.put(event)
-
-
-SHUTTER_GPIO = 16
 
 
 def find_tft_framebuffer():
@@ -82,10 +86,6 @@ def main():
     touch.start()
 
     # accept events from shutter
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(
-        SHUTTER_GPIO, GPIO.IN, pull_up_down=GPIO.PUD_UP  # idle HIGH, pressed LOW
-    )
     threading.Thread(target=shutter_thread, args=(event_queue,), daemon=True)
 
     # main loop

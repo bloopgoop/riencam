@@ -37,3 +37,11 @@ class CameraView(BaseView):
                 return {"nextView": "Gallery"}
 
         return {"status": "ok"}
+
+    def on_enter(self):
+        # Implement the method, even if it's empty
+        pass
+
+    def on_exit(self):
+        # Implement the method, even if it's empty
+        pass

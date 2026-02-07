@@ -1,4 +1,4 @@
-from base import BaseView
+from views.base import BaseView
 
 
 class ViewController:
