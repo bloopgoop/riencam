@@ -1,16 +1,14 @@
+from base import BaseView
+
+
 class ViewController:
-    def __init__(self, framebuffer, camera):
-        self.framebuffer = framebuffer
-        self.camera = camera
-        self.current_view = None
+    def __init__(self, current_view: BaseView | None, devices):
+        self.devices = devices
+        self.current_view: BaseView | None = current_view
 
-    def switch_to(self, view_cls):
-        if self.current_view:
-            self.current_view.on_exit()
-
-        self.current_view = view_cls(self)
-        self.current_view.on_enter()
-        self.current_view.render()
+    def switch_to(self, View):
+        if not self.current_view:
+            self.current_view = View(self.devices)
 
     def handle_input(self, event):
         if self.current_view:

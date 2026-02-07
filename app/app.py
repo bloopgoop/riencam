@@ -10,65 +10,103 @@ from views.controller import ViewController
 from views.camera_view import CameraView
 from input.touch import Touchscreen
 from input.events import InputEvent
+from views.base import Devices
 
 import RPi.GPIO as GPIO
 
-SHUTTER_GPIO = 36
+from queue import Queue
+import threading
+
+
+event_queue = Queue()
+
+
+def shutter_thread(queue):
+    last_state = GPIO.input(SHUTTER_GPIO)
+
+    while True:
+        current_state = GPIO.input(SHUTTER_GPIO)
+
+        if last_state == GPIO.HIGH and current_state == GPIO.LOW:
+            queue.put(InputEvent(type="BUTTON", action="PRESS"))
+
+        last_state = current_state
+        time.sleep(0.01)
+
+
+def on_touch(event):
+    event_queue.put(event)
+
+
+SHUTTER_GPIO = 16
+
+
+def find_tft_framebuffer():
+    while True:
+        for fb in os.listdir("/sys/class/graphics"):
+            try:
+                with open(f"/sys/class/graphics/{fb}/name") as f:
+                    name = f.read().lower()
+                if "ili9486" in name or "tft" in name:
+                    print(f"Found framebuffer: /dev/{fb}")
+                    return f"/dev/{fb}"
+            except IOError:
+                pass
+        time.sleep(0.05)
+
 
 def main():
-    while not os.path.exists("/dev/fb1"):
-        time.sleep(0.05)
+    # initialize
+    fb_path = find_tft_framebuffer()
     print("READY")
 
-    framebuffer = Framebuffer(fb_path="/dev/fb1", width=480, height=320)
+    # intialize devices
+    framebuffer = Framebuffer(fb_path=fb_path, width=480, height=320)
     camera = Camera(
-        PHOTO_DIR="/data/photos", 
-        CONFIG_FILE="/etc/camera/camera.conf", 
+        PHOTO_DIR="/data/photos",
+        CONFIG_FILE="/etc/camera/camera.conf",
     )
+    devices = Devices(display=framebuffer, camera=camera)
 
-    controller = ViewController(framebuffer=framebuffer, camera=camera)
+    # main controller
+    controller = ViewController(current_view=None, devices=devices)
     controller.switch_to(CameraView)
 
+    # accept events from touchscreen
     touch = Touchscreen(
         device_path="/dev/input/event0",
         screen_width=480,
         screen_height=320,
-        callback=controller.handle_input
+        callback=on_touch,
     )
     touch.start()
 
+    # accept events from shutter
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(
-        SHUTTER_GPIO,
-        GPIO.IN,
-        pull_up_down=GPIO.PUD_UP    # idle HIGH, pressed LOW
+        SHUTTER_GPIO, GPIO.IN, pull_up_down=GPIO.PUD_UP  # idle HIGH, pressed LOW
     )
+    threading.Thread(target=shutter_thread, args=(event_queue,), daemon=True)
 
-
-    last_state = GPIO.input(SHUTTER_GPIO)
-    print(f"starting button state: {last_state}")
-
+    # main loop
     try:
         while True:
-            current_state = GPIO.input(SHUTTER_GPIO)
+            event = event_queue.get()
+            result = None
+            if event:
+                result = controller.handle_input(event)
 
-            if last_state == GPIO.HIGH and current_state == GPIO.LOW:
-                print("BUTTON PRESSED")
-                controller.handle_input(
-                    InputEvent(type="BUTTON", action="PRESS")
-                )
-                print(f"SAVED {path}")
+            if result:
+                if result["nextView"]:
+                    event_queue.put(result["nextView"])
 
-            last_state = current_state
-            time.sleep(0.01)  # 10 ms poll (fast enough for human input)
-
-            # camera.show_status(bg_color=rgb565(0, 0, 128), text="SAVED")
     except Exception as e:
         print(f"ERROR {e}")
         time.sleep(2)
 
     finally:
         GPIO.cleanup()
+
 
 if __name__ == "__main__":
     main()
