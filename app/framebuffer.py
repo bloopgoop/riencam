@@ -2,6 +2,8 @@ import mmap
 import os
 import struct
 
+from PIL import Image
+
 class Framebuffer:
     def __init__(self, fb_path, width, height):
         self.fb_path = fb_path
@@ -29,6 +31,19 @@ class Framebuffer:
             offset = (row * self.width + x) * self.bpp
             self.mem.seek(offset)
             self.mem.write(pixel * w)
+
+    def draw_image(self, src_image_path):
+        img = Image.open(src_image_path)
+        img = img.convert("RGB")
+        img = img.resize((self.width, self.height), Image.BILINEAR)
+
+        self.mem.seek(0)
+
+        for y in range(self.height):
+            for x in range(self.width):
+                r, g, b = img.getpixel((x, y))
+                pixel = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
+                self.mem.write(struct.pack("<H", pixel))
 
 # RGB565 helpers
 def rgb565(r, g, b):

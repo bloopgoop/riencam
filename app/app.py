@@ -2,80 +2,73 @@
 
 import os
 import time
-import subprocess
-import datetime
 
-from framebuffer import Framebuffer, rgb565
-from font import draw_text
+from framebuffer import Framebuffer
+from camera import Camera
 
-PHOTO_DIR = "/data/photos"
-TEMP_FILE = os.path.join(PHOTO_DIR, ".capture.tmp")
-CAPTURE_CMD = [
-    "rpicam-still",
-    "-n",                 # no preview
-    "-t", "1",            # minimal delay
-    "-o", TEMP_FILE
-]
+from views.controller import ViewController
+from views.camera_view import CameraView
+from input.touch import Touchscreen
+from input.events import InputEvent
 
-FB_DEV = "/dev/fb1"
-CONFIG_FILE = "/etc/camera/camera.conf"
-FB_WIDTH = 480
-FB_HEIGHT = 320
+import RPi.GPIO as GPIO
 
-def show_status(fb, text, bg_color):
-    fb.clear(bg_color)
-    draw_text(fb, 40, 140, text, rgb565(255, 255, 255))
-
-def init_ui(fb_path):
-    fb = Framebuffer(fb_path, FB_WIDTH, FB_HEIGHT)
-    show_status(fb, "READY", rgb565(0, 128, 0))
-    return fb
-
-def ensure_dirs():
-    os.makedirs(PHOTO_DIR, exist_ok=True)
-
-def generate_filename():
-    ts = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    return os.path.join(PHOTO_DIR, f"{ts}.jpg")
-
-def capture_image():
-    final_path = generate_filename()
-
-    # Run capture
-    result = subprocess.run(CAPTURE_CMD)
-    if result.returncode != 0:
-        raise RuntimeError("Camera capture failed")
-
-    # Flush to disk
-    with open(TEMP_FILE, "rb") as f:
-        os.fsync(f.fileno())
-
-    # Atomic rename
-    os.rename(TEMP_FILE, final_path)
-
-    # Sync directory metadata
-    dir_fd = os.open(PHOTO_DIR, os.O_DIRECTORY)
-    os.fsync(dir_fd)
-    os.close(dir_fd)
-
-    return final_path
+SHUTTER_GPIO = 36
 
 def main():
-    ensure_dirs()
-    fb = init_ui(FB_DEV)
+    while not os.path.exists("/dev/fb1"):
+        time.sleep(0.05)
     print("READY")
 
-    # TEMP: auto-capture every 10 seconds for testing
-    while True:
-        time.sleep(10)
-        try:
-            show_status(fb, "CAPTURING", rgb565(128, 128, 0))
-            path = capture_image()
-            print(f"SAVED {path}")
-            show_status(fb, "SAVED", rgb565(0, 0, 128))
-        except Exception as e:
-            print(f"ERROR {e}")
-            time.sleep(2)
+    framebuffer = Framebuffer(fb_path="/dev/fb1", width=480, height=320)
+    camera = Camera(
+        PHOTO_DIR="/data/photos", 
+        CONFIG_FILE="/etc/camera/camera.conf", 
+    )
+
+    controller = ViewController(framebuffer=framebuffer, camera=camera)
+    controller.switch_to(CameraView)
+
+    touch = Touchscreen(
+        device_path="/dev/input/event0",
+        screen_width=480,
+        screen_height=320,
+        callback=controller.handle_input
+    )
+    touch.start()
+
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(
+        SHUTTER_GPIO,
+        GPIO.IN,
+        pull_up_down=GPIO.PUD_UP    # idle HIGH, pressed LOW
+    )
+
+
+    last_state = GPIO.input(SHUTTER_GPIO)
+    print(f"starting button state: {last_state}")
+
+    try:
+        while True:
+            current_state = GPIO.input(SHUTTER_GPIO)
+
+            if last_state == GPIO.HIGH and current_state == GPIO.LOW:
+                print("BUTTON PRESSED")
+                controller.handle_input(
+                    InputEvent(type="BUTTON", action="PRESS")
+                )
+                print(f"SAVED {path}")
+
+            last_state = current_state
+            time.sleep(0.01)  # 10 ms poll (fast enough for human input)
+
+            # camera.show_status(bg_color=rgb565(0, 0, 128), text="SAVED")
+    except Exception as e:
+        print(f"ERROR {e}")
+        time.sleep(2)
+
+    finally:
+        GPIO.cleanup()
 
 if __name__ == "__main__":
     main()

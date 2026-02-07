@@ -260,3 +260,10 @@ input driver → /dev/input/eventX
 fbcon may attach automatically
 
 Userspace can draw pixels directly
+
+
+# DONE BUT NOT ADDED TO NOTES
+
+
+sudo apt install python3-pil
+sudo apt-get install python3-rpi.gpio

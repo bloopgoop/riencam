@@ -1,11 +1,10 @@
 [Unit]
 Description=DIY Camera Service
-After=local-fs.target dev-fb1.device
-Requires=dev-fb1.device
+After=local-fs.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -u /opt/camera/camera_app.py
+ExecStart=/usr/bin/python3 -u /opt/camera/app.py
 Restart=always
 RestartSec=1
 StandardOutput=journal

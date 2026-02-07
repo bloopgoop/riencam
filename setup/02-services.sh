@@ -36,9 +36,11 @@ cp -rf "$SERVICE_SRC" "$SERVICE_DEST"
 echo "[+] systemd service created"
 
 # enable service
+systemctl stop camera.service
 systemctl daemon-reexec
 systemctl daemon-reload
 systemctl enable camera.service
+systemctl start camera.service
 
 echo "[+] Camera service enabled"
 echo "[+] Phase 1.4 complete — reboot to activate"
