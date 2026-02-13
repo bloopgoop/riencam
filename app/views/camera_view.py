@@ -1,4 +1,5 @@
 from views.base import BaseView, Devices
+from views.overlay import TextButton
 from font import draw_text
 from framebuffer import rgb565
 
@@ -7,6 +8,29 @@ class CameraView(BaseView):
 
     def __init__(self, devices: Devices):
         self.devices = devices
+        self.overlays = [
+            TextButton(
+                x=10,
+                y=10,
+                w=48,
+                h=8,
+                label="CAMERA",
+                type="TOUCH",
+                action="PRESS",
+                callback=None
+            ),
+            TextButton(
+                x=380,
+                y=0,
+                w=108,
+                h=36,
+                label="GALLERY",
+                type="TOUCH",
+                action="RELEASE",
+                callback=self.switch_to_gallery_view
+            )
+        ]
+
         self.render()
 
     def render(self):
@@ -18,10 +42,8 @@ class CameraView(BaseView):
         else:
             draw_text(self.devices.display, 40, 140, "READY", rgb565(255, 255, 255))
 
-        self.draw_overlay()
-
-    def draw_overlay(self):
-        draw_text(self.devices.display, 10, 10, "CAMERA", rgb565(255, 255, 255))
+        for overlay in self.overlays:
+            overlay.draw(self.devices.display)
 
     def handle_input(self, event) -> dict[str, str]:
         if event.type == "BUTTON" and event.action == "PRESS":
@@ -30,13 +52,17 @@ class CameraView(BaseView):
             self.render()
             return {"status": "ok"}
 
-        elif event.type == "TOUCH" and event.action == "PRESS":
-            # placeholder: tap right side → gallery
-            print("Touch press detected")
-            if event.x and event.x > self.devices.display.width * 0.7:
-                return {"nextView": "Gallery"}
+        for overlay in self.overlays:
+            if overlay.accepts_event(event):
+                print("overylay", overlay.label, "accepts", event.type, event.action)
+                if overlay.callback != None:
+                    print(overlay.handle_event())
+                    return overlay.handle_event()
 
         return {"status": "ok"}
+    
+    def switch_to_gallery_view(self):
+        return {"REDIRECT": "GALLERY"}
 
     def on_enter(self):
         # Implement the method, even if it's empty

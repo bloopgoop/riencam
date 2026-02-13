@@ -29,9 +29,9 @@ class Camera:
             "rpicam-still",
             "-n",
             "--width",
-            480,
+            "480",
             "--height",
-            320,
+            "320",
             "-o",
             self.TEMP_FILE
         ], check=True)

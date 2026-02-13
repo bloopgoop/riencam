@@ -7,9 +7,9 @@ class ViewController:
         self.current_view: BaseView | None = current_view
 
     def switch_to(self, View):
-        if not self.current_view:
-            self.current_view = View(self.devices)
+        print("Switching to", View)
+        self.current_view = View(self.devices)
 
     def handle_input(self, event):
         if self.current_view:
-            self.current_view.handle_input(event)
+            return self.current_view.handle_input(event)

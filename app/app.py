@@ -2,14 +2,17 @@
 
 import os
 import time
+import traceback
 
 from framebuffer import Framebuffer
 from camera import Camera
 
 from views.controller import ViewController
 from views.camera_view import CameraView
+from views.gallery_view import GalleryView
+from views.settings_view import SettingsView
 from input.touch import Touchscreen
-from input.events import InputEvent
+from input.events import InputEvent, LogEvent, RedirectEvent
 from views.base import Devices
 
 import RPi.GPIO as GPIO
@@ -17,12 +20,11 @@ import RPi.GPIO as GPIO
 from queue import Queue
 import threading
 
-
 event_queue = Queue()
 
 SHUTTER_GPIO = 16
 
-def shutter_thread(queue):
+def shutter_thread(enqueue):
     # accept events from shutter
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(
@@ -31,20 +33,25 @@ def shutter_thread(queue):
 
     last_state = GPIO.input(SHUTTER_GPIO)
 
+    print("shutter damoen started from print")
+    enqueue(LogEvent("INFO", "shutter daemon started"))
+    enqueue(LogEvent("INFO", f"last state: {last_state}"))
     while True:
         current_state = GPIO.input(SHUTTER_GPIO)
 
         if last_state == GPIO.HIGH and current_state == GPIO.LOW:
-            queue.put(InputEvent(type="BUTTON", action="PRESS"))
+            enqueue(LogEvent("INFO", "shutter event queued"))
+            enqueue(InputEvent(type="BUTTON", action="PRESS"))
 
         last_state = current_state
         time.sleep(0.01)
 
 
-def on_touch(event):
+def enqueue(event):
     event_queue.put(event)
 
 
+# TO DO: figure out how to choose correct fb. This is a workaround for now. Sometimes uses existing fb0
 def find_tft_framebuffer():
     while True:
         for fb in os.listdir("/sys/class/graphics"):
@@ -81,27 +88,47 @@ def main():
         device_path="/dev/input/event0",
         screen_width=480,
         screen_height=320,
-        callback=on_touch,
+        rotation=90,
+        callback=enqueue,
     )
     touch.start()
 
     # accept events from shutter
-    threading.Thread(target=shutter_thread, args=(event_queue,), daemon=True)
+    threading.Thread(target=shutter_thread, args=(enqueue,), daemon=True).start()
 
     # main loop
     try:
         while True:
             event = event_queue.get()
-            result = None
-            if event:
-                result = controller.handle_input(event)
+            if (event == None):
+                continue
 
-            if result:
-                if result["nextView"]:
-                    event_queue.put(result["nextView"])
+            match event.type:
+                case "LOG":
+                    print(event.message)
+                
+                case "REDIRECT":
+                    print("redirect event detected")
+                    if event.to == "GALLERY":
+                        controller.switch_to(GalleryView)
+
+                    if event.to == "CAMERA":
+                        controller.switch_to(CameraView)
+                    
+                    if event.to == "SETTINGS":
+                        controller. switch_to(SettingsView)
+
+                case _:
+                    print(event.type, event.action)
+                    result = controller.handle_input(event)
+                    print(result)
+                    if result:
+                        if result.get("REDIRECT"):
+                            event_queue.put(RedirectEvent(to=result["REDIRECT"]))
 
     except Exception as e:
         print(f"ERROR {e}")
+        traceback.print_exc()
         time.sleep(2)
 
     finally:
