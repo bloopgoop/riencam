@@ -1,15 +1,75 @@
-from views.base import BaseView
+from views.base import BaseView, Devices
+from views.overlay import TextButton
 from font import draw_text
 from framebuffer import rgb565
 
+
+
 class Setting:
-    def __init__(self, name, value, immediate, apply_fn=None):
-        self.name = name
-        self.value = value
-        self.immediate = immediate
-        self.apply_fn = apply_fn
+    def __init__(self, file_path="/etc/camera/settings.json"):
+        # Default values
+        self.brightness = 50
+        self.load()
+
+    def load(self):
+        if os.path.exists(self.file_path):
+            try:
+                with open(self.file_path, "r") as f:
+                    data = json.load(f)
+                # Update attributes from the file
+                for key, value in data.items():
+                    if hasattr(self, key):
+                        setattr(self, key, value)
+            except Exception as e:
+                print(f"Warning: Could not load settings: {e}")
+
+    def save(self):
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
+        data = {k: getattr(self, k) for k in self.__dict__ if k != "file_path"}
+        with open(self.file_path, "w") as f:
+            json.dump(data, f, indent=4)
+        # Flush to disk
+        with open(self.file_path, "r+") as f:
+            f.flush()
+            os.fsync(f.fileno())
 
 class SettingsView(BaseView):
+
+    def __init__(self, devices: Devices):
+        self.devices = devices
+        self.overlays = [
+            TextButton(
+                x=10,
+                y=10,
+                w=108,
+                h=36,
+                label="SETTINGS",
+                type="TOUCH",
+                action="PRESS",
+                callback=None
+            ),
+        ]
+        self.settings = Setting()
+        self.render()
+
+    def get_overlays(self):
+        return self.overlays
+
+    def render(self):
+        self.devices.display.clear(rgb565(0, 0, 0))
+
+        y = 60
+        for i, s in enumerate(self.settings):
+            color = rgb565(255,255,0) if i == self.index else rgb565(255,255,255)
+            label = s.name if s.value is None else f"{s.name}: {s.value}"
+            draw_text(self.devices.display, 40, y, label, color)
+            y += 30
+
+        draw_text(self.devices.display, 40, 10, "SETTINGS", rgb565(255,255,255))
+
+        for overlay in self.overlays:
+            overlay.draw(self.devices.display)
 
     def on_enter(self):
         self.settings = self._build_settings()
@@ -17,7 +77,7 @@ class SettingsView(BaseView):
         self.render()
 
     def _build_settings(self):
-        cam = self.controller.camera
+        cam = self.devices.camera
 
         return [
             Setting(
@@ -34,29 +94,18 @@ class SettingsView(BaseView):
             Setting("BACK", None, immediate=True)
         ]
 
-    def render(self):
-        self.fb.clear(rgb565(0, 0, 0))
-
-        y = 60
-        for i, s in enumerate(self.settings):
-            color = rgb565(255,255,0) if i == self.index else rgb565(255,255,255)
-            label = s.name if s.value is None else f"{s.name}: {s.value}"
-            draw_text(self.fb, 40, y, label, color)
-            y += 30
-
-        draw_text(self.fb, 40, 10, "SETTINGS", rgb565(255,255,255))
-
     def handle_input(self, event):
         if event.type == "BUTTON" and event.action == "PRESS":
-            self.activate()
+            return {"status": "ok"}
 
-        elif event.type == "TOUCH" and event.action == "PRESS":
-            if event.y < self.fb.height * 0.3:
-                self.move_up()
-            elif event.y > self.fb.height * 0.7:
-                self.move_down()
-            else:
-                self.activate()
+        for overlay in self.overlays:
+            if overlay.accepts_event(event):
+                print("overylay", overlay.label, "accepts", event.type, event.action)
+                if overlay.callback != None:
+                    print(overlay.handle_event())
+                    return overlay.handle_event()
+                
+        return {"status": "ok"}
 
     def move_up(self):
         self.index = max(0, self.index - 1)
@@ -66,20 +115,10 @@ class SettingsView(BaseView):
         self.index = min(len(self.settings)-1, self.index + 1)
         self.render()
 
-    def activate(self):
-        s = self.settings[self.index]
+    def on_enter(self):
+        # Implement the method, even if it's empty
+        pass
 
-        if s.name == "BACK":
-            from views.camera_view import CameraView
-            self.controller.switch_to(CameraView)
-            return
-
-        if isinstance(s.value, int):
-            s.value += 5
-        elif isinstance(s.value, str):
-            s.value = "NEXT"  # placeholder
-
-        if s.immediate and s.apply_fn:
-            s.apply_fn(s.value)
-
-        self.render()
+    def on_exit(self):
+        # Implement the method, even if it's empty
+        pass

@@ -11,27 +11,19 @@ class CameraView(BaseView):
         self.overlays = [
             TextButton(
                 x=10,
-                y=10,
-                w=48,
-                h=8,
-                label="CAMERA",
-                type="TOUCH",
-                action="PRESS",
-                callback=None
-            ),
-            TextButton(
-                x=380,
                 y=0,
                 w=108,
                 h=36,
-                label="GALLERY",
+                label="CAMERA",
                 type="TOUCH",
                 action="RELEASE",
-                callback=self.switch_to_gallery_view
+                callback=None
             )
         ]
-
         self.render()
+
+    def get_overlays(self):
+        return self.overlays
 
     def render(self):
         self.devices.display.clear(rgb565(0, 0, 0))
@@ -60,9 +52,6 @@ class CameraView(BaseView):
                     return overlay.handle_event()
 
         return {"status": "ok"}
-    
-    def switch_to_gallery_view(self):
-        return {"REDIRECT": "GALLERY"}
 
     def on_enter(self):
         # Implement the method, even if it's empty

@@ -11,6 +11,7 @@ from views.controller import ViewController
 from views.camera_view import CameraView
 from views.gallery_view import GalleryView
 from views.settings_view import SettingsView
+from views.overlay import Button
 from input.touch import Touchscreen
 from input.events import InputEvent, LogEvent, RedirectEvent
 from views.base import Devices
@@ -66,6 +67,7 @@ def find_tft_framebuffer():
         time.sleep(0.05)
 
 
+
 def main():
     # initialize
     fb_path = find_tft_framebuffer()
@@ -79,8 +81,51 @@ def main():
     )
     devices = Devices(display=framebuffer, camera=camera)
 
+    dirname = os.path.dirname(__file__)
+
+    buttons = [
+        Button(
+            x=400, 
+            y=10 + 64 * 1, 
+            icon_w=36, 
+            icon_h=36,
+            button_w=48,
+            button_h=48,
+            path=os.path.join(dirname, "assets/camera-48.png"), 
+            callback=lambda: controller.switch_to(CameraView),
+            label="CAMERA",
+            type="TOUCH",
+            action="PRESS"
+            ),
+        Button(
+            x=400, 
+            y=10 + 64 * 2, 
+            icon_w=36,
+            icon_h=36,
+            button_w=48,
+            button_h=48,
+            path=os.path.join(dirname, "assets/gallery-48.png"), 
+            callback=lambda: controller.switch_to(GalleryView),
+            label="GALLERY",
+            type="TOUCH",
+            action="PRESS"
+            ),
+        # Button(
+        #     x=400, 
+        #     y=10 + 64 * 3, 
+        #     w=48, 
+        #     h=48, 
+        #     path=os.path.join(dirname, "assets/settings-48.png"), 
+        #     callback=lambda: controller.switch_to(SettingsView),
+        #     label="SETTINGS",
+        #     type="TOUCH",
+        #     action="PRESS"
+        #     )
+    ]
+
+
     # main controller
-    controller = ViewController(current_view=None, devices=devices)
+    controller = ViewController(current_view=None, devices=devices, prehandlers = buttons)
     controller.switch_to(CameraView)
 
     # accept events from touchscreen
@@ -96,6 +141,8 @@ def main():
     # accept events from shutter
     threading.Thread(target=shutter_thread, args=(enqueue,), daemon=True).start()
 
+
+
     # main loop
     try:
         while True:
@@ -106,25 +153,16 @@ def main():
             match event.type:
                 case "LOG":
                     print(event.message)
-                
-                case "REDIRECT":
-                    print("redirect event detected")
-                    if event.to == "GALLERY":
-                        controller.switch_to(GalleryView)
-
-                    if event.to == "CAMERA":
-                        controller.switch_to(CameraView)
-                    
-                    if event.to == "SETTINGS":
-                        controller. switch_to(SettingsView)
-
+    
                 case _:
-                    print(event.type, event.action)
-                    result = controller.handle_input(event)
-                    print(result)
-                    if result:
-                        if result.get("REDIRECT"):
-                            event_queue.put(RedirectEvent(to=result["REDIRECT"]))
+                    for handler in controller.handlers:
+                        if handler.accepts_event(event):
+                            handler.handle_event()
+                            break
+            
+            # draw overlays
+            for btn in buttons:
+                btn.draw(framebuffer)
 
     except Exception as e:
         print(f"ERROR {e}")

@@ -14,20 +14,10 @@ class GalleryView(BaseView):
                 y=0,
                 w=108,
                 h=36,
-                label="CAMERA",
+                label="GALLERY",
                 type="TOUCH",
                 action="RELEASE",
-                callback=self.switch_to_camera_view
-            ),
-            TextButton(
-                x=380,
-                y=0,
-                w=108,
-                h=36,
-                label="SETTINGS",
-                type="TOUCH",
-                action="RELEASE",
-                callback=self.switch_to_camera_view
+                callback=None
             ),
             TextButton(
                 x=10,
@@ -50,11 +40,12 @@ class GalleryView(BaseView):
                 callback=self.next_image
             )
         ]
-
         self.images = self._load_images()
         self.index = len(self.images) - 1 if self.images else 0
-
         self.render()
+
+    def get_overlays(self):
+        return self.overlays
 
     def _load_images(self):
         try:
@@ -105,10 +96,6 @@ class GalleryView(BaseView):
         self.index = (self.index - 1) % len(self.images)
         self.render()
 
-
-    def switch_to_camera_view(self):
-        return {"REDIRECT": "CAMERA"}
-    
     def on_enter(self):
         # Implement the method, even if it's empty
         pass
