@@ -3,7 +3,6 @@ from evdev import InputDevice, ecodes
 
 from input.events import InputEvent
 
-
 class Touchscreen:
     def __init__(self, device_path, screen_width, screen_height, rotation, callback):
         self.dev = InputDevice(device_path)
@@ -25,10 +24,13 @@ class Touchscreen:
         print(absinfo_x) # min 0, max 4095
         print(absinfo_y) # min 0, max 4095
 
-        self.min_x = absinfo_x.min
-        self.max_x = absinfo_x.max
-        self.min_y = absinfo_y.min
-        self.max_y = absinfo_y.max
+        # Use calibrated values from your testing
+        # Top-left was X=190, Y=3950
+        # Bottom-right was X=3850, Y=200
+        self.min_x = 190
+        self.max_x = 3850
+        self.min_y = 200   # Note: Y is inverted, so min is actually at bottom
+        self.max_y = 3950
 
     def start(self):
         self.running = True
@@ -38,27 +40,24 @@ class Touchscreen:
     def stop(self):
         self.running = False
 
-    def _scale(self, value, min_v, max_v, out_max):
-        return int((value - min_v) * out_max / (max_v - min_v))
-
     def _current_coords(self):
-        # normalize raw values to 0..1
-        nx = (self.abs_x - self.min_x) / (self.max_x - self.min_x)
-        ny = (self.abs_y - self.min_y) / (self.max_y - self.min_y)
+        # Normalize raw values to 0..1, clamping to valid range
+        nx = max(0.0, min(1.0, (self.abs_x - self.min_x) / (self.max_x - self.min_x)))
+        ny = max(0.0, min(1.0, (self.abs_y - self.min_y) / (self.max_y - self.min_y)))
 
-        # map axes based on measured behavior
-        screen_x = 1.0 - ny   # raw_y → X, inverted
-        screen_y = nx         # raw_x → Y
+        # For 90° rotation with your measured behavior:
+        # - raw Y (inverted) maps to screen X
+        # - raw X maps to screen Y
+        screen_x = int((1.0 - ny) * self.screen_width)
+        screen_y = int(nx * self.screen_height)
 
-        # convert to pixels
-        px = int(screen_x * (self.screen_width - 1))
-        py = int(screen_y * (self.screen_height - 1))
+        # Safety clamp (should not be needed with the clamps above, but just in case)
+        screen_x = max(0, min(self.screen_width - 1, screen_x))
+        screen_y = max(0, min(self.screen_height - 1, screen_y))
 
-        # safety clamp
-        px = max(0, min(self.screen_width - 1, px))
-        py = max(0, min(self.screen_height - 1, py))
+        print(screen_x, screen_y)
 
-        return px, py
+        return screen_x, screen_y
 
     def _emit(self, action):
         x, y = self._current_coords()

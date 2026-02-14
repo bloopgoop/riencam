@@ -69,7 +69,7 @@ Will restart on failure and on boot
 
 You can check the status of the service with `systemctl status camera.service`
 
-You can check the logs here `journalctl -u camera.service -b`
+You can check the logs here `journalctl -r -u camera.service -b`
 
 
 
